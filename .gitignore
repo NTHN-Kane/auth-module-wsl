@@ -21,6 +21,7 @@ target/
 # Upload/storage
 storage/
 uploads/
+auth_uploads/
 
 # Docker/Postgres data
 postgres_data/

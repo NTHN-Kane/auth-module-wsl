@@ -29,6 +29,21 @@ public class FileHistory {
     @Column(nullable = false)
     private Long fileId;
 
+    // [THÊM MỚI]
+    // snapshot mã file tại thời điểm ghi log, giúp vẫn hiển thị đúng dù file gốc đã bị xóa
+    @Column(length = 50)
+    private String fileCodeSnapshot;
+
+    // [THÊM MỚI]
+    // snapshot tên file tại thời điểm ghi log, tránh bị mất tên khi file gốc không còn
+    @Column(length = 255)
+    private String fileDisplayNameSnapshot;
+
+    // [THÊM MỚI]
+    // snapshot trạng thái xử lý file tại thời điểm ghi log
+    @Column(length = 50)
+    private String processStatusSnapshot;
+
     // hành động đã xảy ra: UPLOAD / UPDATE_META / DELETE / DOWNLOAD / APPROVE / REJECT
     @Column(nullable = false, length = 50)
     private String action;

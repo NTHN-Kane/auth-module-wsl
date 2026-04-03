@@ -34,12 +34,12 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import HistoryIcon from "@mui/icons-material/History";
 import api from "../api";
 import AppSnackbar from "../components/AppSnackbar";
 import FolderExplorerTree from "../components/files/FolderExplorerTree";
 import { getCurrentEmail, isAdmin } from "../utils/auth";
 import UploadHistoryDialog from "../components/files/UploadHistoryDialog";
-import HistoryIcon from "@mui/icons-material/History";
 
 type FileRow = {
   id: number;
@@ -49,12 +49,17 @@ type FileRow = {
   contentType: string | null;
   sizeBytes: number;
   uploadedAt: string;
+  uploaderId?: number;
   uploaderUsername: string;
   uploaderEmail: string;
   folderId: number | null;
   folderName: string | null;
   logicalPath: string | null;
   storagePath: string | null;
+  fileCode?: string | null;
+  processStatus?: string | null;
+  adminNote?: string | null;
+  visibleInSystem?: boolean | null;
 };
 
 type FolderItem = {
@@ -201,6 +206,24 @@ function canPreviewFile(file: FileRow | null) {
         file.contentType.includes("excel") ||
         file.contentType.includes("powerpoint")))
   );
+}
+
+// [THÊM] label trạng thái workflow
+function getStatusLabel(status?: string | null) {
+  switch (status) {
+    case "CHO_NHAN":
+      return "Chờ nhận";
+    case "DA_NHAN":
+      return "Đã nhận";
+    case "DANG_XU_LY":
+      return "Đang xử lý";
+    case "DA_HOAN_TAT":
+      return "Đã hoàn tất";
+    case "TU_CHOI":
+      return "Từ chối";
+    default:
+      return "-";
+  }
 }
 
 const FilePropertiesRow: React.FC<{ label: string; value?: string | number | null }> = ({
@@ -712,16 +735,46 @@ const Files: React.FC = () => {
       {
         field: "stt",
         headerName: "STT",
-        width: 80,
+        width: 50,
         sortable: false,
         filterable: false,
         renderCell: (params) => params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
       },
-      { field: "displayName", headerName: "Tên file", flex: 1, minWidth: 220 },
+      {
+        field: "displayName",
+        headerName: "Tên file",
+        flex: 1,
+        minWidth: 220,
+      },
+
+      {
+        field: "fileType",
+        headerName: "Loại file",
+        width: 110,
+        renderCell: (params) => (
+          <Chip
+            size="small"
+            label={params.row.fileType || "-"}
+            variant="outlined"
+          />
+        ),
+      },
+      // [THÊM] mã file
+      ...(admin
+        ? [
+            {
+              field: "fileCode",
+              headerName: "Mã file",
+              width: 150,
+              valueGetter: (_value: any, row: FileRow) => row.fileCode || "-",
+            } satisfies GridColDef<FileRow>,
+          ]
+        : []),
+      
       {
         field: "sizeBytes",
         headerName: "Dung lượng",
-        width: 130,
+        width: 110,
         valueFormatter: (value) => formatBytes(Number(value)),
       },
       {
@@ -736,9 +789,9 @@ const Files: React.FC = () => {
               field: "uploader",
               headerName: "Owner",
               flex: 1,
-              minWidth: 240,
+              minWidth: 170,
               valueGetter: (_value: any, row: FileRow) =>
-                `${row.uploaderUsername} • ${row.uploaderEmail}`,
+                `${row.uploaderUsername}`,
             } satisfies GridColDef<FileRow>,
           ]
         : []),
@@ -1125,10 +1178,24 @@ const Files: React.FC = () => {
         <DialogTitle>Thông tin chi tiết file</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1 }}>
+            {/* [THÊM] */}
+            <FilePropertiesRow label="Mã file" value={selectedFile?.fileCode || "-"} />
             <FilePropertiesRow label="Tên file hiển thị" value={selectedFile?.displayName || "-"} />
             <FilePropertiesRow label="Tên file gốc" value={selectedFile?.originalFilename || "-"} />
             <FilePropertiesRow label="Loại file" value={getExplorerTypeLabel(selectedFile)} />
             <FilePropertiesRow label="Định dạng hệ thống" value={selectedFile?.fileType || "-"} />
+            {/* [THÊM] */}
+            <FilePropertiesRow
+              label="Trạng thái xử lý"
+              value={getStatusLabel(selectedFile?.processStatus)}
+            />
+            {/* [THÊM] */}
+            <FilePropertiesRow
+              label="Lên hệ thống"
+              value={selectedFile?.visibleInSystem ? "Có" : "Chưa"}
+            />
+            {/* [THÊM] */}
+            <FilePropertiesRow label="Ghi chú admin" value={selectedFile?.adminNote || "-"} />
             <FilePropertiesRow
               label="Vị trí thư mục"
               value={

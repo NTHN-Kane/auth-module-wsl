@@ -30,6 +30,7 @@ type FileHistoryRow = {
   fileId: number;
   fileCode: string | null;
   fileDisplayName: string | null;
+  processStatus: string | null;
   action: string;
   performedByUserId: number;
   performedByEmail: string;
@@ -90,6 +91,24 @@ function getActionColor(
       return "error";
     default:
       return "default";
+  }
+}
+
+// [THÊM] label trạng thái xử lý file
+function getProcessStatusLabel(status?: string | null) {
+  switch (status) {
+    case "CHO_NHAN":
+      return "Chờ nhận";
+    case "DA_NHAN":
+      return "Đã nhận";
+    case "DANG_XU_LY":
+      return "Đang xử lý";
+    case "DA_HOAN_TAT":
+      return "Đã hoàn tất";
+    case "TU_CHOI":
+      return "Từ chối";
+    default:
+      return "-";
   }
 }
 
@@ -193,6 +212,8 @@ const UploadHistoryDialog: React.FC<UploadHistoryDialogProps> = ({
         String(row.fileId).includes(q) ||
         (row.fileCode || "").toLowerCase().includes(q) ||
         (row.fileDisplayName || "").toLowerCase().includes(q) ||
+        (row.processStatus || "").toLowerCase().includes(q) ||
+        getProcessStatusLabel(row.processStatus).toLowerCase().includes(q) ||
         (row.action || "").toLowerCase().includes(q) ||
         (getActionLabel(row.action) || "").toLowerCase().includes(q) ||
         (row.note || "").toLowerCase().includes(q) ||
@@ -479,7 +500,11 @@ const UploadHistoryDialog: React.FC<UploadHistoryDialogProps> = ({
               value={detailTarget?.fileCode || String(detailTarget?.fileId ?? "-")}
             />
             <DetailRow label="Tên file" value={detailTarget?.fileDisplayName || "-"} />
-            <DetailRow label="Trạng thái" value={getActionLabel(detailTarget?.action)} />
+            <DetailRow
+              label="Trạng thái xử lý"
+              value={getProcessStatusLabel(detailTarget?.processStatus)}
+            />
+            <DetailRow label="Trạng thái thao tác" value={getActionLabel(detailTarget?.action)} />
             <DetailRow
               label="Thời gian"
               value={

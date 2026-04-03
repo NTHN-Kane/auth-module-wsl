@@ -16,6 +16,10 @@ public class FileHistoryResponse {
     private String fileCode;
     private String fileDisplayName;
 
+    // [THÊM MỚI]
+    // trạng thái xử lý tại thời điểm log
+    private String processStatus;
+
     // hành động: UPLOAD / DELETE / DOWNLOAD / ...
     private String action;
 

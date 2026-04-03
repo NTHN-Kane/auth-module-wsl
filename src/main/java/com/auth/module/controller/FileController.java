@@ -53,7 +53,7 @@ public class FileController {
     @PostMapping("/folders")
     public FolderResponse createFolder(
             Authentication authentication,
-            @RequestBody CreateFolderRequest request
+            @Valid @RequestBody CreateFolderRequest request
     ) {
         return fileService.createFolder(authentication.getName(), request);
     }
@@ -63,17 +63,17 @@ public class FileController {
         return fileService.listMyFolders(authentication.getName());
     }
 
-    // [ĐÃ THÊM] API sửa tên thư mục
+    // [GIỮ NGUYÊN] API sửa tên thư mục
     @PutMapping("/folders/{id}")
     public FolderResponse updateFolder(
             Authentication authentication,
             @PathVariable Long id,
-            @RequestBody UpdateFolderRequest request
+            @Valid @RequestBody UpdateFolderRequest request
     ) {
         return fileService.updateFolder(authentication.getName(), id, request);
     }
 
-    // [ĐÃ THÊM] API xóa thư mục
+    // [GIỮ NGUYÊN] API xóa thư mục
     @DeleteMapping("/folders/{id}")
     public void deleteFolder(
             Authentication authentication,
@@ -98,7 +98,7 @@ public class FileController {
     public FileResponse updateMeta(
             Authentication authentication,
             @PathVariable Long id,
-            @RequestBody UpdateFileMetaRequest req
+            @Valid @RequestBody UpdateFileMetaRequest req
     ) {
         return fileService.updateMeta(authentication.getName(), id, req);
     }
@@ -133,7 +133,7 @@ public class FileController {
                 .body(res);
     }
 
-    // [ĐÃ THÊM] admin cập nhật trạng thái và ghi chú file đầu vào
+    // [GIỮ NGUYÊN URL] admin cập nhật trạng thái và ghi chú file đầu vào
     @PutMapping("/admin/{id}/meta")
     public ResponseEntity<FileResponse> updateAdminFileMeta(
             @PathVariable Long id,
@@ -143,7 +143,7 @@ public class FileController {
         return ResponseEntity.ok(fileService.updateAdminFileMeta(id, request, authentication));
     }
 
-    // [ĐÃ THÊM MỚI] lịch sử upload
+    // [GIỮ NGUYÊN] lịch sử upload
     @GetMapping("/history")
     public Page<FileResponse> getUploadHistory(
             Authentication authentication,
@@ -154,7 +154,7 @@ public class FileController {
         return fileService.getUploadHistory(authentication.getName(), q, page, size);
     }
 
-    // [ĐÃ THÊM MỚI] xóa lịch sử upload
+    // [GIỮ NGUYÊN] xóa lịch sử upload
     @DeleteMapping("/history/{id}")
     public void deleteUploadHistory(
             Authentication authentication,

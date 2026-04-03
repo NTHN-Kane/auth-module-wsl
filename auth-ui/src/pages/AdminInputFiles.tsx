@@ -66,6 +66,11 @@ type AdminOverviewResponse = {
   files: FileRow[];
 };
 
+type StatusOption = {
+  value: string;
+  label: string;
+};
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
@@ -171,6 +176,38 @@ function getStatusColor(
   }
 }
 
+// [THÊM] file đã chốt workflow thì không cho cập nhật tiếp trên FE
+function isWorkflowLocked(status?: string | null) {
+  return status === "DA_HOAN_TAT" || status === "TU_CHOI";
+}
+
+// [THÊM] chỉ hiện các trạng thái hợp lệ theo rule backend
+function getAllowedStatusOptions(currentStatus?: string | null): StatusOption[] {
+  switch (currentStatus) {
+    case "DA_NHAN":
+      return [
+        { value: "DA_NHAN", label: "Đã nhận" },
+        { value: "DANG_XU_LY", label: "Đang xử lý" },
+        { value: "DA_HOAN_TAT", label: "Đã hoàn tất" },
+        { value: "TU_CHOI", label: "Từ chối" },
+      ];
+    case "DANG_XU_LY":
+      return [
+        { value: "DANG_XU_LY", label: "Đang xử lý" },
+        { value: "DA_HOAN_TAT", label: "Đã hoàn tất" },
+        { value: "TU_CHOI", label: "Từ chối" },
+      ];
+    case "DA_HOAN_TAT":
+      return [{ value: "DA_HOAN_TAT", label: "Đã hoàn tất" }];
+    case "TU_CHOI":
+      return [{ value: "TU_CHOI", label: "Từ chối" }];
+    case "CHO_NHAN":
+      return [{ value: "CHO_NHAN", label: "Chờ nhận" }];
+    default:
+      return [];
+  }
+}
+
 const DetailRow: React.FC<{ label: string; value?: string | number | null }> = ({
   label,
   value,
@@ -243,6 +280,11 @@ export default function AdminInputFiles() {
 
     return baseRows;
   }, [rows, statusFilter]);
+
+  const metaStatusOptions = useMemo(
+    () => getAllowedStatusOptions(metaTarget?.processStatus),
+    [metaTarget]
+  );
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -404,14 +446,47 @@ export default function AdminInputFiles() {
   };
 
   const handleOpenUpdateMeta = (row: FileRow) => {
+    if (isWorkflowLocked(row.processStatus)) {
+      setSnackbar({
+        open: true,
+        severity: "info",
+        message: "File này đã chốt trạng thái, không thể cập nhật tiếp",
+      });
+      return;
+    }
+
+    const options = getAllowedStatusOptions(row.processStatus);
+    const defaultStatus =
+      options.find((option) => option.value === row.processStatus)?.value ||
+      options[0]?.value ||
+      "DANG_XU_LY";
+
     setMetaTarget(row);
-    setMetaStatus(row.processStatus || "DANG_XU_LY");
+    setMetaStatus(defaultStatus);
     setMetaNote(row.adminNote || "");
     setOpenUpdateMeta(true);
   };
 
   const handleUpdateMeta = async () => {
     if (!metaTarget?.id) return;
+
+    if (isWorkflowLocked(metaTarget.processStatus)) {
+      setSnackbar({
+        open: true,
+        severity: "warning",
+        message: "File này đã chốt trạng thái, không thể cập nhật tiếp",
+      });
+      return;
+    }
+
+    if (!metaStatus) {
+      setSnackbar({
+        open: true,
+        severity: "warning",
+        message: "Vui lòng chọn trạng thái xử lý",
+      });
+      return;
+    }
 
     try {
       await api.put(`/files/admin/${metaTarget.id}/meta`, {
@@ -427,6 +502,8 @@ export default function AdminInputFiles() {
 
       setOpenUpdateMeta(false);
       setMetaTarget(null);
+      setMetaStatus("DANG_XU_LY");
+      setMetaNote("");
       await fetchFiles();
     } catch (err: any) {
       setSnackbar({
@@ -462,7 +539,7 @@ export default function AdminInputFiles() {
       {
         field: "stt",
         headerName: "STT",
-        width: 80,
+        width: 50,
         sortable: false,
         filterable: false,
         renderCell: (params) => params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
@@ -475,21 +552,21 @@ export default function AdminInputFiles() {
       },
       {
         field: "displayName",
-        headerName: "Tên tài liệu / file",
+        headerName: "Tên file",
         flex: 1,
         minWidth: 220,
       },
       {
         field: "fileType",
         headerName: "Loại file",
-        width: 120,
+        width: 110,
       },
       {
         field: "owner",
         headerName: "Người gửi",
         flex: 1,
-        minWidth: 220,
-        valueGetter: (_value, row) => `${row.uploaderUsername} • ${row.uploaderEmail}`,
+        minWidth: 150,
+        valueGetter: (_value, row) => `${row.uploaderUsername}`,
       },
       {
         field: "uploadedAt",
@@ -500,7 +577,7 @@ export default function AdminInputFiles() {
       {
         field: "processStatus",
         headerName: "Trạng thái",
-        width: 160,
+        width: 140,
         renderCell: (params) => (
           <Chip
             size="small"
@@ -510,23 +587,11 @@ export default function AdminInputFiles() {
           />
         ),
       },
-      {
-        field: "systemVisibility",
-        headerName: "Lên hệ thống",
-        width: 140,
-        renderCell: (params) => (
-          <Chip
-            size="small"
-            label={params.row.visibleInSystem ? "Có" : "Chưa"}
-            color={params.row.visibleInSystem ? "success" : "default"}
-            variant="outlined"
-          />
-        ),
-      },
+      
       {
         field: "sizeBytes",
         headerName: "Dung lượng",
-        width: 130,
+        width: 110,
         valueFormatter: (value) => formatBytes(Number(value)),
       },
       {
@@ -771,16 +836,25 @@ export default function AdminInputFiles() {
             />
 
             <TextField
+              label="Trạng thái hiện tại"
+              value={getStatusLabel(metaTarget?.processStatus)}
+              fullWidth
+              InputProps={{ readOnly: true }}
+            />
+
+            <TextField
               select
-              label="Trạng thái"
+              label="Trạng thái cập nhật"
               value={metaStatus}
               onChange={(e) => setMetaStatus(e.target.value)}
               fullWidth
+              disabled={isWorkflowLocked(metaTarget?.processStatus)}
             >
-              <MenuItem value="DA_NHAN">Đã nhận</MenuItem>
-              <MenuItem value="DANG_XU_LY">Đang xử lý</MenuItem>
-              <MenuItem value="DA_HOAN_TAT">Đã hoàn tất</MenuItem>
-              <MenuItem value="TU_CHOI">Từ chối</MenuItem>
+              {metaStatusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
             </TextField>
 
             <TextField
@@ -791,11 +865,30 @@ export default function AdminInputFiles() {
               minRows={3}
               fullWidth
             />
+
+            {isWorkflowLocked(metaTarget?.processStatus) && (
+              <Typography variant="body2" color="warning.main">
+                File này đã chốt trạng thái nên không thể cập nhật tiếp.
+              </Typography>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenUpdateMeta(false)}>Hủy</Button>
-          <Button variant="contained" onClick={() => void handleUpdateMeta()}>
+          <Button
+            onClick={() => {
+              setOpenUpdateMeta(false);
+              setMetaTarget(null);
+              setMetaStatus("DANG_XU_LY");
+              setMetaNote("");
+            }}
+          >
+            Hủy
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void handleUpdateMeta()}
+            disabled={isWorkflowLocked(metaTarget?.processStatus)}
+          >
             Lưu
           </Button>
         </DialogActions>
@@ -929,6 +1022,7 @@ export default function AdminInputFiles() {
         </MenuItem>
 
         <MenuItem
+          disabled={isWorkflowLocked(fileContextMenu?.row?.processStatus)}
           onClick={() => {
             if (fileContextMenu?.row) {
               handleOpenUpdateMeta(fileContextMenu.row);
@@ -939,7 +1033,13 @@ export default function AdminInputFiles() {
           <ListItemIcon>
             <PlaylistAddCheckCircleIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Cập nhật trạng thái" />
+          <ListItemText
+            primary={
+              isWorkflowLocked(fileContextMenu?.row?.processStatus)
+                ? "Đã chốt trạng thái"
+                : "Cập nhật trạng thái"
+            }
+          />
         </MenuItem>
 
         <Box sx={{ my: 0.5, borderTop: "1px solid #e5e7eb" }} />

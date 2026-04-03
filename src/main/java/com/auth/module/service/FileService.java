@@ -484,21 +484,22 @@ public class FileService {
                 + ", adminNote=" + file.getAdminNote()
                 + ", visibleInSystem=" + file.getVisibleInSystem();
 
-        FileProcessStatus status;
+        if (request.getProcessStatus() == null || request.getProcessStatus().isBlank()) {
+            throw new RuntimeException("Trạng thái không được để trống");
+        }
+
+        FileProcessStatus targetStatus;
         try {
-            status = FileProcessStatus.valueOf(request.getProcessStatus().trim().toUpperCase(Locale.ROOT));
+            targetStatus = FileProcessStatus.valueOf(request.getProcessStatus().trim().toUpperCase(Locale.ROOT));
         } catch (Exception e) {
             throw new RuntimeException("Trạng thái không hợp lệ");
         }
 
-        file.setProcessStatus(status);
-        file.setAdminNote(request.getAdminNote() != null ? request.getAdminNote().trim() : null);
+        String trimmedAdminNote = request.getAdminNote() != null
+                ? request.getAdminNote().trim()
+                : null;
 
-        if (status == FileProcessStatus.DA_HOAN_TAT) {
-            file.setVisibleInSystem(true);
-        } else if (status == FileProcessStatus.TU_CHOI) {
-            file.setVisibleInSystem(false);
-        }
+        applyWorkflowTransition(file, targetStatus, trimmedAdminNote);
 
         UploadedFile saved = uploadedFileRepository.save(file);
 
@@ -506,7 +507,7 @@ public class FileService {
                 + ", adminNote=" + saved.getAdminNote()
                 + ", visibleInSystem=" + saved.getVisibleInSystem();
 
-        if (status == FileProcessStatus.DA_HOAN_TAT) {
+        if (targetStatus == FileProcessStatus.DA_HOAN_TAT) {
             fileHistoryService.log(
                     saved,
                     currentUser,
@@ -515,12 +516,21 @@ public class FileService {
                     oldValue,
                     newValue
             );
-        } else if (status == FileProcessStatus.TU_CHOI) {
+        } else if (targetStatus == FileProcessStatus.TU_CHOI) {
             fileHistoryService.log(
                     saved,
                     currentUser,
                     FileHistoryAction.REJECT,
                     "Admin từ chối file",
+                    oldValue,
+                    newValue
+            );
+        } else {
+            fileHistoryService.log(
+                    saved,
+                    currentUser,
+                    FileHistoryAction.UPDATE_META,
+                    "Admin cập nhật trạng thái xử lý file",
                     oldValue,
                     newValue
             );
@@ -755,10 +765,83 @@ public class FileService {
                 continue;
             }
 
+            FileProcessStatus oldStatus = file.getProcessStatus();
+
+            if (oldStatus != FileProcessStatus.DA_NHAN) {
+                continue;
+            }
+
             file.setProcessStatus(FileProcessStatus.DANG_XU_LY);
+
+            UploadedFile saved = uploadedFileRepository.save(file);
+
+            User uploader = saved.getUploadedBy();
+            if (uploader != null) {
+                fileHistoryService.log(
+                        saved,
+                        uploader,
+                        FileHistoryAction.UPDATE_META,
+                        "Hệ thống tự động chuyển file sang trạng thái đang xử lý",
+                        "processStatus=" + oldStatus + ", visibleInSystem=" + saved.getVisibleInSystem(),
+                        "processStatus=" + saved.getProcessStatus() + ", visibleInSystem=" + saved.getVisibleInSystem()
+                );
+            }
+        }
+    }
+
+    // [THÊM MỚI] siết các rule chuyển trạng thái để admin không set bừa
+    private void applyWorkflowTransition(
+            UploadedFile file,
+            FileProcessStatus targetStatus,
+            String adminNote
+    ) {
+        FileProcessStatus currentStatus = file.getProcessStatus();
+
+        if (currentStatus == null) {
+            throw new RuntimeException("File chưa có trạng thái hiện tại hợp lệ");
         }
 
-        uploadedFileRepository.saveAll(waitingFiles);
+        if (targetStatus == FileProcessStatus.CHO_NHAN) {
+            throw new RuntimeException("Không cho phép chuyển file về trạng thái CHO_NHAN");
+        }
+
+        if (currentStatus == targetStatus) {
+            file.setAdminNote(adminNote);
+            return;
+        }
+
+        switch (currentStatus) {
+            case DA_NHAN -> {
+                if (targetStatus != FileProcessStatus.DANG_XU_LY
+                        && targetStatus != FileProcessStatus.DA_HOAN_TAT
+                        && targetStatus != FileProcessStatus.TU_CHOI) {
+                    throw new RuntimeException("Không thể chuyển từ DA_NHAN sang trạng thái này");
+                }
+            }
+            case DANG_XU_LY -> {
+                if (targetStatus != FileProcessStatus.DA_HOAN_TAT
+                        && targetStatus != FileProcessStatus.TU_CHOI) {
+                    throw new RuntimeException("Không thể chuyển từ DANG_XU_LY sang trạng thái này");
+                }
+            }
+            case DA_HOAN_TAT -> {
+                throw new RuntimeException("File đã hoàn tất, không thể chuyển ngược trạng thái");
+            }
+            case TU_CHOI -> {
+                throw new RuntimeException("File đã bị từ chối, không thể chuyển ngược trạng thái");
+            }
+            default -> throw new RuntimeException("Trạng thái hiện tại không được hỗ trợ");
+        }
+
+        file.setProcessStatus(targetStatus);
+        file.setAdminNote(adminNote);
+
+        if (targetStatus == FileProcessStatus.DA_HOAN_TAT) {
+            file.setVisibleInSystem(true);
+        } else if (targetStatus == FileProcessStatus.TU_CHOI) {
+            file.setVisibleInSystem(false);
+        }
+        // DA_NHAN -> DANG_XU_LY giữ visibleInSystem=false như cũ
     }
 
     private static String sha256Hex(MultipartFile file) {
