@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/authdb}
+    username: ${SPRING_DATASOURCE_USERNAME:authuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:authpass}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  servlet:
+      multipart:
+        max-file-size: 50MB
+        max-request-size: 50MB
+
+server:
+  port: 8081
+
+jwt:
+  secret: super_secret_key_very_long_123456789
+  expiration: 86400000
+
+app:
+  file:
+    storage-dir: ${APP_FILE_STORAGE_DIR:./storage/local-uploads}
+    max-size-mb: 50
+
+
+  

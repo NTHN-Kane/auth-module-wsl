@@ -1,0 +1,59 @@
+services:
+  postgres-db:
+    image: postgres:16
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: authdb_docker
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb_docker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auth-network
+
+  auth-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-app
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/authdb_docker
+      SPRING_DATASOURCE_USERNAME: authuser
+      SPRING_DATASOURCE_PASSWORD: authpass
+      APP_FILE_STORAGE_DIR: /app/storage/docker-uploads
+    # ports:
+    #   - "8081:8081"
+    volumes:
+      - ./auth_uploads:/app/storage/docker-uploads
+    networks:
+      - auth-network
+
+  auth-ui:
+    build:
+      context: ./auth-ui
+      dockerfile: Dockerfile
+    container_name: auth-ui
+    depends_on:
+      - auth-app
+    ports:
+      - "3000:80"
+    networks:
+      - auth-network
+
+# volumes:
+#   postgres_data:
+#   auth_uploads:
+
+networks:
+  auth-network:
+    driver: bridge

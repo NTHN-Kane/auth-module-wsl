@@ -1,0 +1,30 @@
+# Node
+node_modules/
+dist/
+build/
+
+# Java
+target/
+*.jar
+
+# Env
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Upload/storage
+storage/
+uploads/
+
+# Docker/Postgres data
+postgres_data/
+pgdata/
+
+# Logs
+*.log
